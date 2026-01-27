@@ -34,6 +34,7 @@ Route::middleware('auth')->group(function () {
 
 	Route::get('/dashboard/productividad', [WebController::class, 'productividad'])->name('dashboard.productividad');
 	Route::get('/dashboard/rentabilidad', [WebController::class, 'rentabilidad'])->name('dashboard.rentabilidad');
+	Route::get('/dashboard/rentabilidad/card-details', [WebController::class, 'rentabilidadCardDetails'])->name('dashboard.rentabilidad.card-details');
 	Route::get('/dashboard/indicadores', [WebController::class, 'indicadores'])->name('dashboard.indicadores');
 
 
@@ -56,6 +57,9 @@ Route::middleware('auth')->group(function () {
 	Route::resource('contracts', ContractController::class);
 
 	Route::get('quotas/api', [QuotaController::class, 'api'])->name('quotas.api');
+	Route::get('quotas', [QuotaController::class, 'index'])->name('quotas.index');
+	Route::get('quotas/excel', [QuotaController::class, 'excel'])->name('quotas.excel');
+	Route::get('quotas/clients', [QuotaController::class, 'clients'])->name('quotas.clients');
 	Route::get('districts/api', [DistrictController::class, 'api'])->name('districts.api');
 
 	Route::get('payments/charges', [PaymentController::class, 'charges'])->name('payments.charges');

@@ -34,6 +34,12 @@
 
         <div class="card-body border-bottom">
             <form>
+                @if (request()->rentabilidad_card)
+                    <input type="hidden" name="rentabilidad_card" value="{{ request()->rentabilidad_card }}">
+                @endif
+                @if (request()->credit_manager_id)
+                    <input type="hidden" name="credit_manager_id" value="{{ request()->credit_manager_id }}">
+                @endif
                 <div class="row">
                     @if (auth()->user()->hasRole('admin') ||
                             auth()->user()->hasRole('credit') ||
@@ -120,7 +126,16 @@
                                 <td>
                                     {{ $contract->client() . ' - S/' . number_format($contract->requested_amount, 2) . ' - ' . optional($contract->date)->format('d/m/Y') }}
                                 </td>
-                                <td>{{ optional($payment->quota)->number }}</td>
+                                <td>
+                                    @php
+                                        $quotaNumber = optional($payment->quota)->number;
+                                        $quotaDate = optional($payment->quota)->date;
+                                    @endphp
+                                    {{ $quotaNumber }}
+                                    @if ($quotaDate)
+                                        ({{ $quotaDate->format('d/m/Y') }})
+                                    @endif
+                                </td>
                                 <td>{{ number_format($payment->amount, 2) }}</td>
                                 <td>
                                     @if (optional($payment->payment_method)->id == 1 || strtoupper(optional($payment->payment_method)->name) == 'EFECTIVO')
@@ -504,6 +519,12 @@
 
         });
 
+        function formatMoney(value) {
+            var n = parseFloat(value);
+            if (isNaN(n)) return '0.00';
+            return n.toFixed(2);
+        }
+
         function getQuotas(contract_id) {
             $.ajax({
                 url: '{{ route('quotas.api') }}?contract_id=' + contract_id,
@@ -522,7 +543,9 @@
                         detectGroupType(data.quotas);
                         
                         data.quotas.forEach(function(quota) {
-                            html += `<option value="${quota.number}" data-people='${JSON.stringify(quota.people)}' data-debt='${quota.debt}'>Cuota ${quota.number} - Monto Total: ${quota.amount} - Saldo: ${quota.debt} - Fecha: ${quota.date}</option>`;
+                            var amount = formatMoney(quota.amount);
+                            var debt = formatMoney(quota.debt);
+                            html += `<option value="${quota.number}" data-people='${JSON.stringify(quota.people)}' data-debt='${quota.debt}'>Cuota ${quota.number} - Monto Total: ${amount} - Saldo: ${debt} - Fecha: ${quota.date}</option>`;
                         });
                         
                         $('#quota_id').html(html);
@@ -543,7 +566,9 @@
                         currentGroupType = null;
                         $('#divGroupType').hide();
                         data.quotas.forEach(function(quota) {
-                            html += `<option value="${quota.id}">Cuota ${quota.number} - Monto ${quota.amount} - Saldo: ${quota.debt} - Fecha: ${quota.date}</option>`;
+                            var amount = formatMoney(quota.amount);
+                            var debt = formatMoney(quota.debt);
+                            html += `<option value="${quota.id}">Cuota ${quota.number} - Monto ${amount} - Saldo: ${debt} - Fecha: ${quota.date}</option>`;
                         });
                         
                         $('#quota_id').html(html);

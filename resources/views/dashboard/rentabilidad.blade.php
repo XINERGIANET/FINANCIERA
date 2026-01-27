@@ -133,7 +133,8 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card mb-4">
+                        <div class="card mb-4 js-rentabilidad-card" role="button" tabindex="0"
+                            data-card="advance" data-title="Pagos adelantados de hoy">
                             <div class="card-body text-center">
                                 <h5 class="card-title">
                                     Pagos adelantados de hoy
@@ -145,7 +146,8 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card mb-4">
+                        <div class="card mb-4 js-rentabilidad-card" role="button" tabindex="0"
+                            data-card="today" data-title="Pagos de hoy">
                             <div class="card-body text-center">
                                 <h5 class="card-title">
                                     Pagos de hoy
@@ -156,7 +158,8 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card mb-4">
+                        <div class="card mb-4 js-rentabilidad-card" role="button" tabindex="0"
+                            data-card="timely" data-title="Pagos puntuales de hoy">
                             <div class="card-body text-center">
                                 <h5 class="card-title">
                                     Pagos puntuales de hoy
@@ -167,7 +170,8 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card mb-4">
+                        <div class="card mb-4 js-rentabilidad-card" role="button" tabindex="0"
+                            data-card="projected" data-title="Proyectado para hoy">
                             <div class="card-body text-center">
                                 <h5 class="card-title text-center">
                                     Proyectado para hoy
@@ -196,6 +200,28 @@
         </div>
     @endif
 
+    <div class="modal modal-blur fade" id="rentabilidadCardModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rentabilidadCardModalTitle">Detalle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="text-muted">Registros encontrados:</div>
+                        <div class="fw-semibold" id="rentabilidadCardTotal">0</div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter">
+                            <thead id="rentabilidadCardTableHead"></thead>
+                            <tbody id="rentabilidadCardTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 @endsection
 
@@ -348,5 +374,148 @@
                 filterSellers();
             });
         });
+    </script>
+    <script>
+        (function() {
+            var rentabilidadFilters = {
+                start_date_1: "{{ request()->start_date_1 }}",
+                end_date_1: "{{ request()->end_date_1 }}",
+                credit_manager_id: "{{ request()->credit_manager_id }}",
+                seller_id_2: "{{ request()->seller_id_2 }}"
+            };
+
+            function escapeHtml(str) {
+                if (str === null || str === undefined) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function renderPayments(items) {
+                var rows = items.map(function(item) {
+                    return `
+                        <tr>
+                            <td>${escapeHtml(item.client)}</td>
+                            <td>${escapeHtml(item.person_name || '')}</td>
+                            <td>${escapeHtml(item.quota_number || '')}</td>
+                            <td>S/${parseFloat(item.amount || 0).toFixed(2)}</td>
+                            <td>${escapeHtml(item.payment_method || '')}</td>
+                            <td>${escapeHtml(item.payment_date || '')}</td>
+                            <td>${escapeHtml(item.due_days)}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                if (!rows) {
+                    rows = '<tr><td colspan="7" class="text-center">No se encontraron pagos</td></tr>';
+                }
+
+                $('#rentabilidadCardTableHead').html(`
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Persona</th>
+                        <th>Cuota</th>
+                        <th>Monto</th>
+                        <th>Método</th>
+                        <th>Fecha pago</th>
+                        <th>Mora</th>
+                    </tr>
+                `);
+                $('#rentabilidadCardTableBody').html(rows);
+            }
+
+            function renderQuotas(items) {
+                var rows = items.map(function(item) {
+                    var status = item.paid ? 'Pagado' : 'Pendiente';
+                    return `
+                        <tr>
+                            <td>${escapeHtml(item.client)}</td>
+                            <td>${escapeHtml(item.person_name || '')}</td>
+                            <td>${escapeHtml(item.quota_number || '')}</td>
+                            <td>S/${parseFloat(item.amount || 0).toFixed(2)}</td>
+                            <td>S/${parseFloat(item.debt || 0).toFixed(2)}</td>
+                            <td>${escapeHtml(item.due_date || '')}</td>
+                            <td>${status}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                if (!rows) {
+                    rows = '<tr><td colspan="7" class="text-center">No se encontraron cuotas</td></tr>';
+                }
+
+                $('#rentabilidadCardTableHead').html(`
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Persona</th>
+                        <th>Cuota</th>
+                        <th>Monto</th>
+                        <th>Deuda</th>
+                        <th>Fecha cuota</th>
+                        <th>Estado</th>
+                    </tr>
+                `);
+                $('#rentabilidadCardTableBody').html(rows);
+            }
+
+            function loadCardDetails(card, title) {
+                $('#rentabilidadCardModalTitle').text(title || 'Detalle');
+                $('#rentabilidadCardTotal').text('0');
+                $('#rentabilidadCardTableHead').html('');
+                $('#rentabilidadCardTableBody').html(`
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+                $('#rentabilidadCardModal').modal('show');
+
+                $.ajax({
+                    url: "{{ route('dashboard.rentabilidad.card-details') }}",
+                    method: 'GET',
+                    data: Object.assign({}, rentabilidadFilters, { card: card }),
+                    success: function(data) {
+                        if (!data || !data.status) {
+                            $('#rentabilidadCardTableBody').html(
+                                '<tr><td colspan="7" class="text-center">No se pudo cargar el detalle</td></tr>'
+                            );
+                            return;
+                        }
+
+                        $('#rentabilidadCardTotal').text(data.total || 0);
+
+                        if (data.type === 'quotas') {
+                            renderQuotas(data.items || []);
+                        } else {
+                            renderPayments(data.items || []);
+                        }
+                    },
+                    error: function() {
+                        $('#rentabilidadCardTableBody').html(
+                            '<tr><td colspan="7" class="text-center">No se pudo cargar el detalle</td></tr>'
+                        );
+                    }
+                });
+            }
+
+            $(document).on('click', '.js-rentabilidad-card', function() {
+                var card = $(this).data('card');
+                var title = $(this).data('title');
+                loadCardDetails(card, title);
+            });
+
+            $(document).on('keypress', '.js-rentabilidad-card', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    $(this).trigger('click');
+                }
+            });
+        })();
     </script>
 @endsection

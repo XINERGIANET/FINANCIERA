@@ -20,6 +20,10 @@ class PaymentController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
+        $rentabilidadCard = $request->rentabilidad_card;
+        $startDate = $request->start_date;
+        $endDate = $request->end_date;
+
         $paymentsQuery = Payment::active()
             ->when($user->hasRole('seller'), function ($query) use ($user) {
                 return $query->whereHas('quota.contract', function ($query) use ($user) {
@@ -29,6 +33,11 @@ class PaymentController extends Controller
             ->when($user->hasRole('credit_manager'), function ($query) use ($user) {
                 return $query->whereHas('quota.contract.seller', function ($query) use ($user) {
                     return $query->where('credit_manager_id', $user->id);
+                });
+            })
+            ->when($request->credit_manager_id, function ($query, $creditManagerId) {
+                return $query->whereHas('quota.contract.seller', function ($query) use ($creditManagerId) {
+                    return $query->where('credit_manager_id', $creditManagerId);
                 });
             })
             ->when($request->name, function ($query, $name) {
@@ -43,11 +52,28 @@ class PaymentController extends Controller
                 return $query->whereHas('quota.contract', function ($query) use ($seller_id) {
                     return $query->where('seller_id', $seller_id);
                 });
-            })->when($request->start_date, function ($query, $start_date) {
-                return $query->whereDate('date', '>=', $start_date);
-            })->when($request->end_date, function ($query, $end_date) {
-                return $query->whereDate('date', '<=', $end_date);
-            })->latest('date')->latest('id');
+            })->when($startDate && $rentabilidadCard !== 'projected', function ($query) use ($startDate) {
+                return $query->whereDate('date', '>=', $startDate);
+            })->when($endDate && $rentabilidadCard !== 'projected', function ($query) use ($endDate) {
+                return $query->whereDate('date', '<=', $endDate);
+            })
+            ->when($rentabilidadCard === 'advance', function ($query) {
+                return $query->whereRaw('DATE(payments.date) < (SELECT DATE(quotas.date) FROM quotas WHERE quotas.id = payments.quota_id)');
+            })
+            ->when($rentabilidadCard === 'timely', function ($query) {
+                return $query->whereRaw('DATE(payments.date) = (SELECT DATE(quotas.date) FROM quotas WHERE quotas.id = payments.quota_id)');
+            })
+            ->when($rentabilidadCard === 'projected', function ($query) use ($startDate, $endDate) {
+                return $query->whereHas('quota', function ($q) use ($startDate, $endDate) {
+                    if ($startDate) {
+                        $q->whereDate('date', '>=', $startDate);
+                    }
+                    if ($endDate) {
+                        $q->whereDate('date', '<=', $endDate);
+                    }
+                });
+            })
+            ->latest('date')->latest('id');
 
         $total = $paymentsQuery->sum('amount');
 
