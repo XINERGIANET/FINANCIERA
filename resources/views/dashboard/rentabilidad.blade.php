@@ -188,8 +188,8 @@
                                     Pago puntual
                                 </h5>
                                 <span
-                                    class="d-block fs-1 text-center fw-semibold text-center">{{ $today_projected > 0 
-                                        ? number_format(($today_timely_payments / $today_projected) * 100, 2).'%' 
+                                    class="d-block fs-1 text-center fw-semibold text-center">{{ ($today_projected_people ?? 0) > 0
+                                        ? number_format((($today_advance_payments_people ?? 0) + ($today_timely_payments_people ?? 0)) / ($today_projected_people ?? 1) * 100, 2).'%' 
                                         : '0%' }}
                                     </span>
                             </div>
