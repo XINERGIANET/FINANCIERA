@@ -819,6 +819,23 @@ class WebController extends Controller
             return $isTimely;
         });
 
+        // En contratos tipo Grupo: solo contar como puntual/adelantado cuando TODOS pagaron esa cuota
+        $onlyCompleteGroupPayments = function ($payment) use ($groupQuotasCache, $groupContractIds) {
+            $quota = $payment->quota;
+            $contractId = $quota->contract_id ?? null;
+            if ($contractId === null) {
+                return false;
+            }
+            if (!in_array($contractId, $groupContractIds, true)) {
+                return true; // contrato personal, incluir
+            }
+            $key = $contractId . '_' . ($quota->number ?? 'none');
+            return $groupQuotasCache->get($key, false);
+        };
+
+        $advancePayments = $advancePayments->filter($onlyCompleteGroupPayments);
+        $timelyPayments = $timelyPayments->filter($onlyCompleteGroupPayments);
+
         $today_advance_payments_people = $advancePayments
             ->groupBy(function ($payment) {
                 $quota = $payment->quota;
@@ -1203,6 +1220,49 @@ class WebController extends Controller
                     return $isTimely;
                 })->values();
             }
+
+            // En contratos tipo Grupo: solo mostrar en detalle cuando TODOS pagaron esa cuota
+            $groupContractIdsCard = Contract::where('client_type', 'Grupo')
+                ->where('deleted', 0)
+                ->when($creditManagerId, function ($query) use ($creditManagerId) {
+                    return $query->whereHas('seller', function ($q) use ($creditManagerId) {
+                        return $q->where('credit_manager_id', $creditManagerId);
+                    });
+                })
+                ->when($sellerId, function ($query) use ($sellerId) {
+                    return $query->where('seller_id', $sellerId);
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $groupQuotasCacheCard = collect();
+            if (!empty($groupContractIdsCard)) {
+                $groupQuotasCacheCard = Quota::whereIn('contract_id', $groupContractIdsCard)
+                    ->get()
+                    ->groupBy(function ($quota) {
+                        return $quota->contract_id . '_' . $quota->number;
+                    })
+                    ->map(function ($quotas) {
+                        return $quotas->every(function ($q) {
+                            return $q->paid == 1;
+                        });
+                    });
+            }
+
+            $onlyCompleteGroupPaymentsCard = function ($payment) use ($groupQuotasCacheCard, $groupContractIdsCard) {
+                $quota = $payment->quota;
+                $contractId = $quota->contract_id ?? null;
+                if ($contractId === null) {
+                    return false;
+                }
+                if (!in_array($contractId, $groupContractIdsCard, true)) {
+                    return true;
+                }
+                $key = $contractId . '_' . ($quota->number ?? 'none');
+                return $groupQuotasCacheCard->get($key, false);
+            };
+
+            $payments = $payments->filter($onlyCompleteGroupPaymentsCard)->values();
         } else {
             $payments = Payment::active()
                 ->when($startDate, function ($query) use ($startDate) {
