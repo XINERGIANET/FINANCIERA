@@ -732,7 +732,7 @@ class WebController extends Controller
             })
             ->whereHas('quota', function ($q) {
                 return $q->where('paid', 1);
-            ->when($user->hasRole('seller'), function ($query) use ($user) {
+            })->when($user->hasRole('seller'), function ($query) use ($user) {
                 return $query->whereHas('quota.contract', function ($q) use ($user) {
                     return $q->where('seller_id', $user->id);
                 });
@@ -761,7 +761,7 @@ class WebController extends Controller
             })
             ->whereHas('quota', function ($q) {
                 return $q->where('paid', 1);
-            ->when($user->hasRole('seller'), function ($query) use ($user) {
+            })->when($user->hasRole('seller'), function ($query) use ($user) {
                 return $query->whereHas('quota.contract', function ($q) use ($user) {
                     return $q->where('seller_id', $user->id);
                 });
@@ -792,7 +792,7 @@ class WebController extends Controller
             })
             ->whereHas('quota', function ($q) {
                 return $q->where('paid', 1);
-            ->when($user->hasRole('seller'), function ($query) use ($user) {
+            })->when($user->hasRole('seller'), function ($query) use ($user) {
                 return $query->whereHas('quota.contract', function ($q) use ($user) {
                     return $q->where('seller_id', $user->id);
                 });
@@ -1228,7 +1228,7 @@ class WebController extends Controller
                 })
                 ->whereHas('quota', function ($q) {
                     return $q->where('paid', 1);
-                ->when($user->hasRole('seller'), function ($query) use ($user) {
+                })->when($user->hasRole('seller'), function ($query) use ($user) {
                     return $query->whereHas('quota.contract', function ($q) use ($user) {
                         return $q->where('seller_id', $user->id);
                     });
@@ -1347,7 +1347,7 @@ class WebController extends Controller
                 })
                 ->whereHas('quota', function ($q) {
                     return $q->where('paid', 1);
-                ->when($user->hasRole('seller'), function ($query) use ($user) {
+                })->when($user->hasRole('seller'), function ($query) use ($user) {
                     return $query->whereHas('quota.contract', function ($q) use ($user) {
                         return $q->where('seller_id', $user->id);
                     });
