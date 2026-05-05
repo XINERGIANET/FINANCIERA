@@ -61,7 +61,8 @@
                             auth()->user()->hasRole('credit') ||
                             auth()->user()->hasRole('operations') ||
                             auth()->user()->hasRole('credit_manager') ||
-                            auth()->user()->hasRole('admin_credit'))
+                            auth()->user()->hasRole('admin_credit') ||
+                            auth()->user()->hasRole('seller'))
                         <div class="col-md-3">
                             <div class="mb-3">
                                 <label class="form-label">Cliente</label>

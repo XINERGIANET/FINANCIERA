@@ -3,7 +3,6 @@
 namespace App\Exports;
 
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -40,6 +39,7 @@ class DuesExport implements FromCollection, WithHeadings, WithMapping, WithStyle
         $diasMora = $quota->date->lt($refDate) ? $refDate->diffInDays($quota->date) : 0;
 
         return [
+            optional(optional(optional($quota->contract)->seller)->creditManager)->name,
             optional(optional($quota->contract)->seller)->name,
             $quota->contract_number_pagare ?? optional($quota->contract)->number_pagare,
             optional($quota->contract)->client(),
@@ -54,6 +54,7 @@ class DuesExport implements FromCollection, WithHeadings, WithMapping, WithStyle
     public function headings(): array
     {
         return [
+            'Jefe de credito',
             'Asesor',
             'N° Pagaré',
             'Cliente',

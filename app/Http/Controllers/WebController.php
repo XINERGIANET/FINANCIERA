@@ -690,9 +690,9 @@ class WebController extends Controller
             ->when($request->seller_id_2, function ($query, $seller_id) {
                 return $query->where('seller_id', $seller_id);
             });
-        
+
         $groupContractIds = $groupContractsQuery->pluck('id')->toArray();
-        
+
         // Precargar todas las cuotas de contratos grupales y crear cache
         $groupQuotasCache = collect();
         $groupQuotaCountCache = collect(); // total de miembros por grupo+cuota
@@ -709,7 +709,7 @@ class WebController extends Controller
                     return $q->paid == 1;
                 });
             });
-            $groupQuotaCountCache = $groupQuotasRaw->map(fn ($quotas) => $quotas->count());
+            $groupQuotaCountCache = $groupQuotasRaw->map(fn($quotas) => $quotas->count());
         }
 
         // Clave para agrupar por documento (Personal) o group_name (Grupo) + cuota - evita duplicados
@@ -824,11 +824,11 @@ class WebController extends Controller
                 ->join('quotas', 'payments.quota_id', '=', 'quotas.id')
                 ->whereIn('quotas.contract_id', $groupContractIds)
                 ->whereRaw('DATE(payments.date) > DATE(quotas.date)')
-                ->when($request->start_date_1, fn ($q, $d) => $q->whereDate('quotas.date', '>=', $d))
-                ->when($request->end_date_1, fn ($q, $d) => $q->whereDate('quotas.date', '<=', $d))
+                ->when($request->start_date_1, fn($q, $d) => $q->whereDate('quotas.date', '>=', $d))
+                ->when($request->end_date_1, fn($q, $d) => $q->whereDate('quotas.date', '<=', $d))
                 ->select('quotas.contract_id', 'quotas.number')
                 ->get()
-                ->map(fn ($row) => ($row->contract_id ?? 'none') . '_' . ($row->number ?? 'none'))
+                ->map(fn($row) => ($row->contract_id ?? 'none') . '_' . ($row->number ?? 'none'))
                 ->unique();
         }
 
@@ -860,7 +860,7 @@ class WebController extends Controller
             if (in_array($contractId, $groupContractIds, true)) {
                 // Para grupos: no aparece si alguien pagó tarde
                 if ($lateGroupKeys->contains($key)) {
-                    return false; 
+                    return false;
                 }
                 // Filtro para grupos en puntual (siempre aplica a la fecha de la cuota)
                 if ($request->start_date_1 && $quota->date->lt(\Carbon\Carbon::parse($request->start_date_1)->startOfDay())) {
@@ -1335,11 +1335,11 @@ class WebController extends Controller
                     ->join('quotas', 'payments.quota_id', '=', 'quotas.id')
                     ->whereIn('quotas.contract_id', $groupContractIdsCard)
                     ->whereRaw('DATE(payments.date) > DATE(quotas.date)')
-                    ->when($startDate, fn ($q, $d) => $q->whereDate('quotas.date', '>=', $d))
-                    ->when($endDate, fn ($q, $d) => $q->whereDate('quotas.date', '<=', $d))
+                    ->when($startDate, fn($q, $d) => $q->whereDate('quotas.date', '>=', $d))
+                    ->when($endDate, fn($q, $d) => $q->whereDate('quotas.date', '<=', $d))
                     ->select('quotas.contract_id', 'quotas.number')
                     ->get()
-                    ->map(fn ($row) => ($row->contract_id ?? 'none') . '_' . ($row->number ?? 'none'))
+                    ->map(fn($row) => ($row->contract_id ?? 'none') . '_' . ($row->number ?? 'none'))
                     ->unique();
             }
 
@@ -1498,13 +1498,132 @@ class WebController extends Controller
             'items' => $items,
         ]);
     }
+
+    // Calculos para el analisis de carteras por asesor
+    public function carteraAsesor(Request $request)
+    {
+        $user = auth()->user();
+        $admincredits = User::where('role', 'credit_manager')->active()->get();
+        $sellers = User::seller()->active()->get();
+
+        // Fecha de referencia: end_date_2 si se filtra, sino hoy
+        $referenceDate = $request->end_date_2
+            ? \Carbon\Carbon::parse($request->end_date_2)->startOfDay()
+            : now()->startOfDay();
+
+        $cutoff = $referenceDate->copy()->subDays(120)->toDateString();
+
+        // Total de clientes activos (con contratos no pagados y no eliminados)
+        $total_clients_count = DB::table('contracts')
+            ->leftJoin('users', 'contracts.seller_id', '=', 'users.id')
+            ->when($user->hasRole('seller'), function ($q) {
+                return $q->where('contracts.seller_id', auth()->user()->id);
+            })
+            ->when($request->credit_manager_id, function ($q, $cm_id) {
+                return $q->where('users.credit_manager_id', $cm_id);
+            })
+            ->when($request->seller_id_2, function ($q, $seller_id) {
+                return $q->where('contracts.seller_id', $seller_id);
+            })
+            ->when($request->end_date_2, function ($q, $end_date) {
+                return $q->whereDate('contracts.date', '<=', $end_date);
+            })
+            ->where('contracts.deleted', 0)
+            ->where('contracts.paid', 0)
+            ->selectRaw("COUNT(DISTINCT CONCAT(COALESCE(contracts.document,''),'|',COALESCE(contracts.group_name,''))) as total")
+            ->value('total');
+
+        // Clientes con mora >= 120 días
+        $due_clients = DB::table('contracts')
+            ->join('quotas', 'quotas.contract_id', 'contracts.id')
+            ->leftJoin('payments', 'payments.quota_id', 'quotas.id')
+            ->leftJoin('users', 'contracts.seller_id', '=', 'users.id')
+            ->when($user->hasRole('seller'), function ($q) {
+                return $q->where('contracts.seller_id', auth()->user()->id);
+            })
+            ->when($request->credit_manager_id, function ($q, $cm_id) {
+                return $q->where('users.credit_manager_id', $cm_id);
+            })
+            ->when($request->seller_id_2, function ($q, $seller_id) {
+                return $q->where('contracts.seller_id', $seller_id);
+            })
+            ->when($request->end_date_2, function ($q, $end_date) {
+                return $q->whereDate('contracts.date', '<=', $end_date);
+            })
+            ->where(function ($q) use ($cutoff, $referenceDate) {
+                $q->where(function ($q2) use ($cutoff, $referenceDate) {
+                    // Cuotas no pagadas con más de 120 días respecto a la fecha de referencia
+                    $q2->where('quotas.paid', 0)
+                        ->whereDate('quotas.date', '<=', $cutoff);
+                })->orWhere(function ($q2) use ($referenceDate) {
+                    // Pagos registrados con due_days >= 120 y cuya cuota venció antes de la fecha referencia
+                    $q2->where('payments.due_days', '>=', 120)
+                        ->whereDate('quotas.date', '<=', $referenceDate->toDateString());
+                });
+            })
+            ->where('contracts.deleted', 0)
+            ->selectRaw("COUNT(DISTINCT CONCAT(COALESCE(contracts.document,''),'|',COALESCE(contracts.group_name,''))) as total")
+            ->value('total');
+
+        $active_clients = max(0, intval($total_clients_count) - intval($due_clients));
+
+        // --- CÁLCULOS MONETARIOS DE CARTERA ---
+        // Closure con los filtros comunes de asesor/jefe para reutilizar en queries de Quota
+        $baseQuotaQuery = function () use ($user, $request) {
+            return Quota::when($user->hasRole('seller'), function ($q) {
+                return $q->whereHas('contract', fn($c) => $c->where('seller_id', auth()->user()->id));
+            })->when($request->credit_manager_id, function ($q, $cm_id) {
+                return $q->whereHas('contract.seller', fn($s) => $s->where('credit_manager_id', $cm_id));
+            })->when($request->seller_id_2, function ($q, $seller_id) {
+                return $q->whereHas('contract', fn($c) => $c->where('seller_id', $seller_id));
+            })->when($request->end_date_2, function ($q, $d) {
+                return $q->whereHas('contract', fn($c) => $c->whereDate('date', '<=', $d));
+            })->whereHas('contract', fn($c) => $c->where('deleted', 0))
+              ->where('paid', 0);
+        };
+
+        // Cartera bruta = toda la deuda pendiente sin filtro de tramo
+        $cartera_bruta = $baseQuotaQuery()->sum('debt');
+
+        // Mora > 121 días (cuotas vencidas hace más de 121 días respecto a la fecha de referencia)
+        $cutoff_121 = $referenceDate->copy()->subDays(121)->toDateString();
+        $seller_wallet = $baseQuotaQuery()
+            ->whereDate('date', '<=', $cutoff_121)
+            ->sum('debt');
+
+        // Mora 1-120 días (cuotas vencidas entre 1 y 120 días respecto a la fecha de referencia)
+        $due_clients_amount = $baseQuotaQuery()
+            ->whereDate('date', '<', $referenceDate->toDateString())
+            ->whereDate('date', '>', $cutoff_121)
+            ->sum('debt');
+
+        // Cartera actual = Cartera bruta - Mora 121+
+        $seller_wallet_actual = max(0, $cartera_bruta - $seller_wallet);
+
+        // Mora total = Mora 1-120 + Mora 121+
+        $mora_total = $due_clients_amount + $seller_wallet;
+
+        // % Mora = Mora 1-120 días / Cartera actual * 100
+        $pct_mora = $seller_wallet_actual > 0 ? round($due_clients_amount / $seller_wallet_actual * 100, 2) : 0;
+
+        // Reasignar variables para la vista
+        $active_clients   = $seller_wallet_actual;  // Cartera actual
+        $due_clients      = $due_clients_amount;     // Mora <120 días
+        $requested_amount = $mora_total;             // Mora total
+        $due_quotas       = $pct_mora;               // % Mora
+
+        $section = $request->section ?? 'analisis';
+
+        return view('dashboard.cartera_asesor', compact(
+            'admincredits',
+            'sellers',
+            'cartera_bruta',
+            'active_clients',
+            'due_clients',
+            'seller_wallet',
+            'requested_amount',
+            'due_quotas',
+            'section'
+        ));
+    }
 }
-
-
-
-
-
-
-
-
-

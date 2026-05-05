@@ -354,7 +354,7 @@ class PaymentController extends Controller
         return Quota::active()
             ->join('contracts', 'quotas.contract_id', '=', 'contracts.id')
             ->select('quotas.*', 'contracts.number_pagare as contract_number_pagare')
-            ->with('contract.seller')
+            ->with('contract.seller.creditManager')
             ->when($user->hasRole('seller'), function ($query) use ($user) {
                 return $query->whereHas('contract', function ($query) use ($user) {
                     return $query->where('seller_id', $user->id);
