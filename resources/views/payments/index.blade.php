@@ -497,6 +497,22 @@
         let currentContract = null;
         let currentGroupType = null; // 'separated' o 'unified'
         let groupPaymentsData = [];
+        function getAjaxErrorMessage(xhr, fallback) {
+            if (xhr && xhr.responseJSON) {
+                if (xhr.responseJSON.error) return xhr.responseJSON.error;
+                if (xhr.responseJSON.message) return xhr.responseJSON.message;
+            }
+
+            if (xhr && xhr.status === 413) {
+                return 'La imagen supera el limite permitido por el servidor.';
+            }
+
+            if (xhr && xhr.status === 419) {
+                return 'La sesion vencio. Actualiza la pagina e intenta nuevamente.';
+            }
+
+            return fallback || 'Ocurrio un error';
+        }
 
         $(document).ready(function() {
 
@@ -950,6 +966,12 @@
                     }
                 },
                 error: function(err) {
+                    ToastError.fire({
+                        text: getAjaxErrorMessage(err, 'Ocurrio un error')
+                    });
+                    $('#btn-save').prop('disabled', false);
+                    return;
+                    // Unreachable fallback kept out of the execution path.
                     ToastError.fire({
                         text: 'Ocurrió un error'
                     });
